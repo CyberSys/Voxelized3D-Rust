@@ -2,8 +2,8 @@
 use std::vec::*;
 use graphics::*;
 use math::*;
+use matrix::*;
 
-use na::{Vector3};
 
 pub trait RendererVertFrag{
     fn render_mode       (&self) -> usize;
@@ -156,7 +156,7 @@ impl RendererVertFragDef{
     }
 }
 
-pub fn add_triangle_color(dat: &mut RendererVertFragDef, tr: &Triangle3<f32>, color: Vector3<f32>){
+pub fn add_triangle_color(dat: &mut RendererVertFragDef, tr: &Triangle3<f32>, color: Vect3<f32>){
     dat.vertex_pool.push(tr.p1[0]);
     dat.vertex_pool.push(tr.p1[1]);
     dat.vertex_pool.push(tr.p1[2]);
@@ -190,7 +190,7 @@ pub fn add_triangle_color(dat: &mut RendererVertFragDef, tr: &Triangle3<f32>, co
 }
 
 
-pub fn add_triangle_color_normal(dat: &mut RendererVertFragDef, tr: &Triangle3<f32>, color: &Vector3<f32>, normal : &Vector3<f32>){
+pub fn add_triangle_color_normal(dat: &mut RendererVertFragDef, tr: &Triangle3<f32>, color: &Vect3<f32>, normal : &Vect3<f32>){
     dat.vertex_pool.push(tr.p1[0]);
     dat.vertex_pool.push(tr.p1[1]);
     dat.vertex_pool.push(tr.p1[2]);
@@ -235,11 +235,11 @@ pub fn add_triangle_color_normal(dat: &mut RendererVertFragDef, tr: &Triangle3<f
     dat.vertex_count += 3;
 }
 
-fn add_vector_to_pool(dat : &mut RendererVertFragDef, vec : Vector3<f32>){
-    for i in vec.iter(){dat.vertex_pool.push(i.clone());}
+fn add_vector_to_pool(dat : &mut RendererVertFragDef, vec : Vect3<f32>){
+    for i in vec.ar.iter(){dat.vertex_pool.push(i.clone());}
 }
 
-pub fn add_line3_color(dat : &mut RendererVertFragDef, line : Line3<f32>, color : Vector3<f32>){
+pub fn add_line3_color(dat : &mut RendererVertFragDef, line : Line3<f32>, color : Vect3<f32>){
     add_vector_to_pool(dat, line.start);
     add_vector_to_pool(dat, color);
     add_vector_to_pool(dat, line.end);
@@ -251,22 +251,22 @@ pub fn add_line3_color(dat : &mut RendererVertFragDef, line : Line3<f32>, color 
     dat.vertex_count += 2;
 }
 
-pub fn add_square3_bounds_color(dat : &mut RendererVertFragDef, cube : Square3<f32>, color : Vector3<f32>){
-    add_vector_to_pool(dat, Vector3::new(cube.center.x - cube.extent, cube.center.y - cube.extent, cube.center.z - cube.extent));
+pub fn add_square3_bounds_color(dat : &mut RendererVertFragDef, cube : Square3<f32>, color : Vect3<f32>){
+    add_vector_to_pool(dat, Vect3::new(cube.center.x() - cube.extent, cube.center.y() - cube.extent, cube.center.z() - cube.extent));
     add_vector_to_pool(dat, color);
-    add_vector_to_pool(dat, Vector3::new(cube.center.x + cube.extent, cube.center.y - cube.extent, cube.center.z - cube.extent));
+    add_vector_to_pool(dat, Vect3::new(cube.center.x() + cube.extent, cube.center.y() - cube.extent, cube.center.z() - cube.extent));
     add_vector_to_pool(dat, color);
-    add_vector_to_pool(dat, Vector3::new(cube.center.x + cube.extent, cube.center.y + cube.extent, cube.center.z - cube.extent));
+    add_vector_to_pool(dat, Vect3::new(cube.center.x() + cube.extent, cube.center.y() + cube.extent, cube.center.z() - cube.extent));
     add_vector_to_pool(dat, color);
-    add_vector_to_pool(dat, Vector3::new(cube.center.x - cube.extent, cube.center.y + cube.extent, cube.center.z - cube.extent));
+    add_vector_to_pool(dat, Vect3::new(cube.center.x() - cube.extent, cube.center.y() + cube.extent, cube.center.z() - cube.extent));
     add_vector_to_pool(dat, color);
-    add_vector_to_pool(dat, Vector3::new(cube.center.x - cube.extent, cube.center.y - cube.extent, cube.center.z + cube.extent));
+    add_vector_to_pool(dat, Vect3::new(cube.center.x() - cube.extent, cube.center.y() - cube.extent, cube.center.z() + cube.extent));
     add_vector_to_pool(dat, color);
-    add_vector_to_pool(dat, Vector3::new(cube.center.x + cube.extent, cube.center.y - cube.extent, cube.center.z + cube.extent));
+    add_vector_to_pool(dat, Vect3::new(cube.center.x() + cube.extent, cube.center.y() - cube.extent, cube.center.z() + cube.extent));
     add_vector_to_pool(dat, color);
-    add_vector_to_pool(dat, Vector3::new(cube.center.x + cube.extent, cube.center.y + cube.extent, cube.center.z + cube.extent));
+    add_vector_to_pool(dat, Vect3::new(cube.center.x() + cube.extent, cube.center.y() + cube.extent, cube.center.z() + cube.extent));
     add_vector_to_pool(dat, color);
-    add_vector_to_pool(dat, Vector3::new(cube.center.x - cube.extent, cube.center.y + cube.extent, cube.center.z + cube.extent));
+    add_vector_to_pool(dat, Vect3::new(cube.center.x() - cube.extent, cube.center.y() + cube.extent, cube.center.z() + cube.extent));
     add_vector_to_pool(dat, color);
 
     let indices : [u32;24] = [0,1,1,2,2,3,3,0, 4,5,5,6,6,7,7,4, 0,4, 1,5, 2,6, 3,7];
@@ -274,7 +274,7 @@ pub fn add_square3_bounds_color(dat : &mut RendererVertFragDef, cube : Square3<f
     dat.vertex_count += 8;
 }
 
-pub fn add_grid3_color(dat : &mut RendererVertFragDef, center : Vector3<f32>, tangent : Vector3<f32>, normal : Vector3<f32>, extent : f32, subdiv_num : u32, color : Vector3<f32>){
+pub fn add_grid3_color(dat : &mut RendererVertFragDef, center : Vect3<f32>, tangent : Vect3<f32>, normal : Vect3<f32>, extent : f32, subdiv_num : u32, color : Vect3<f32>){
     let right = tangent.cross(&normal) * extent;
     let along = tangent * extent;
     add_vector_to_pool(dat, center - right - along);

@@ -1,8 +1,8 @@
 use std;
-use na::*;
 use math::*;
 use renderer::*;
-use alga::general::SupersetOf;
+use alga::general::{SupersetOf,Real};
+use matrix::*;
 
 #[derive(Clone, Copy, Debug)]
 pub struct MaterialPoint<T : Real + Copy>{
@@ -11,7 +11,7 @@ pub struct MaterialPoint<T : Real + Copy>{
 }
 
 
-pub type DenMatFn3<T> = Box<Fn(Vector3<T>) -> MaterialPoint<T>>;
+pub type DenMatFn3<T> = Box<Fn(Vect3<T>) -> MaterialPoint<T>>;
 
 pub fn intersection3_mat_a<T : Real>(a : DenMatFn3<T>, b : DenMatFn3<T>) -> DenMatFn3<T>{
     Box::new(move |x|{
@@ -66,7 +66,7 @@ impl<T : Real + SupersetOf<f32>> VoxelMaterialGrid3<T>{ //TODO get,set by `t` (p
     pub fn vertices_z(&self) -> usize {self.size_z + 1}
 
     pub fn new(a : T, size_x : usize, size_y : usize, size_z : usize) -> VoxelMaterialGrid3<T>{
-        let grid = vec![MaterialPoint{density : convert(0.0), material : 0};(size_x + 1) * (size_y + 1) * (size_z + 1)];
+        let grid = vec![MaterialPoint{density : T::from_subset(&0.0), material : 0};(size_x + 1) * (size_y + 1) * (size_z + 1)];
 
         VoxelMaterialGrid3{a,size_x, size_y, size_z, grid}
     }
@@ -86,20 +86,20 @@ impl<T : Real + SupersetOf<f32>> VoxelMaterialGrid3<T>{ //TODO get,set by `t` (p
     }
 
 
-    pub fn get_point(&self, x : usize, y : usize, z : usize) -> Vector3<T>{
-        Vector3::new(self.a * convert::<f32, T>(x as f32), self.a * convert::<f32, T>(y as f32), self.a * convert::<f32, T>(z as f32))
+    pub fn get_point(&self, x : usize, y : usize, z : usize) -> Vect3<T>{
+        Vect3::new(self.a * T::from_subset(&(x as f32)), self.a * T::from_subset(&(y as f32)), self.a * T::from_subset(&(z as f32)))
     }
 
     //bounding box of the cube
     pub fn square3(&self, x : usize, y : usize, z : usize) -> Square3<T>{
-        Square3{center : Vector3::new(convert::<f32,T>(x as f32 + 0.5) * self.a, convert::<f32,T>(y as f32 + 0.5) * self.a, convert::<f32,T>(z as f32 + 0.5) * self.a), extent: self.a / convert(2.0)}
+        Square3{center : Vect3::new(T::from_subset(&(x as f32 + 0.5)) * self.a, T::from_subset(&(y as f32 + 0.5)) * self.a, T::from_subset(&(z as f32 + 0.5)) * self.a), extent: self.a / T::from_subset(&2.0)}
     }
 }
 
-fn calc_qef(point : &Vector3<f32>, planes : &Vec<Plane<f32>>) -> f32{
+fn calc_qef(point : &Vect3<f32>, planes : &Vec<Plane<f32>>) -> f32{
     let mut qef : f32 = 0.0;
     for plane in planes{
-        let dist_signed = plane.normal.dot(&(point - plane.point));
+        let dist_signed = plane.normal.dot(&(point - &plane.point));
         qef += dist_signed * dist_signed;
     }
 
@@ -111,8 +111,8 @@ fn const_sign(a : u32, b : u32) -> bool {
 }
 
 
-fn sample_qef_brute(square : Square3<f32>, n : usize, planes : &Vec<Plane<f32>>) -> Vector3<f32> {
-    let ext = Vector3::new(square.extent, square.extent, square.extent);
+fn sample_qef_brute(square : Square3<f32>, n : usize, planes : &Vec<Plane<f32>>) -> Vect3<f32> {
+    let ext = Vect3::new(square.extent, square.extent, square.extent);
     let min = square.center - ext;
 
     let mut best_qef = std::f32::MAX;
@@ -121,9 +121,9 @@ fn sample_qef_brute(square : Square3<f32>, n : usize, planes : &Vec<Plane<f32>>)
     for i in 0..n{
         for j in 0..n{
             for k in 0..n{
-                let point = min + Vector3::new(ext.x * (2.0 * (i as f32) + 1.0) / (n as f32),
-                                               ext.y * (2.0 * (j as f32) + 1.0) / (n as f32),
-                                               ext.z * (2.0 * (k as f32) + 1.0) / (n as f32));
+                let point = min + Vect3::new(ext.x() * (2.0 * (i as f32) + 1.0) / (n as f32),
+                                               ext.y() * (2.0 * (j as f32) + 1.0) / (n as f32),
+                                               ext.z() * (2.0 * (k as f32) + 1.0) / (n as f32));
                 let qef = calc_qef(&point, &planes);
 
                 if qef < best_qef{
@@ -142,14 +142,14 @@ fn sample_qef_brute(square : Square3<f32>, n : usize, planes : &Vec<Plane<f32>>)
 //so the algorithm should use some interpolation methods assuming the surface is smooth(does not change too much within one cube of the grid)
 //interpolation can operate on 8 corner vertices of the cube
 //TODO or maybe save generator to disk ??, in case of random(presudo-random) generator - its seed can be saved
-fn sample_intersection_brute(line : Line3<f32>, n : usize, f : &DenMatFn3<f32>) -> Vector3<f32>{
+fn sample_intersection_brute(line : Line3<f32>, n : usize, f : &DenMatFn3<f32>) -> Vect3<f32>{
 
     let ext = line.end - line.start;
     let norm = ext.norm();
     let dir = ext / norm;
 
     let mut best = std::f32::MAX;
-    let mut best_point : Option<Vector3<f32>> = None;
+    let mut best_point : Option<Vect3<f32>> = None;
 
 
     for i in 0..n {
@@ -167,10 +167,10 @@ fn sample_intersection_brute(line : Line3<f32>, n : usize, f : &DenMatFn3<f32>) 
 
 
 //why haven't I come up with this one at the start ? :)
-pub fn sample_normal(point : &Vector3<f32>, eps : f32, f : &DenMatFn3<f32>) -> Vector3<f32>{
-    Vector3::new( f(Vector3::new(point.x + eps, point.y, point.z)).density - f(Vector3::new(point.x - eps, point.y, point.z)).density,
-                  f(Vector3::new(point.x, point.y + eps, point.z)).density - f(Vector3::new(point.x, point.y - eps, point.z)).density,
-                  f(Vector3::new(point.x, point.y, point.z + eps)).density - f(Vector3::new(point.x, point.y, point.z - eps)).density ).normalize()
+pub fn sample_normal(point : &Vect3<f32>, eps : f32, f : &DenMatFn3<f32>) -> Vect3<f32>{
+    Vect3::new( f(Vect3::new(point.x() + eps, point.y(), point.z())).density - f(Vect3::new(point.x() - eps, point.y(), point.z())).density,
+                  f(Vect3::new(point.x(), point.y() + eps, point.z())).density - f(Vect3::new(point.x(), point.y() - eps, point.z())).density,
+                  f(Vect3::new(point.x(), point.y(), point.z() + eps)).density - f(Vect3::new(point.x(), point.y(), point.z() - eps)).density ).normalize()
 }
 
 
@@ -181,7 +181,7 @@ pub fn sample_normal(point : &Vector3<f32>, eps : f32, f : &DenMatFn3<f32>) -> V
 //feature is a vertex that may or may not be calculated for each cube of the grid. It is calculated for each cube that exhibits a sign change(this means that the cube
 // intersects the surface) and not calculated otherwise
 fn calc_feature(vg : &VoxelMaterialGrid3<f32>, x : usize, y : usize, z : usize,
-               f : &DenMatFn3<f32>, accuracy : usize, contour_data : &mut ContourData, debug_render : &mut RendererVertFragDef) -> Option<Vector3<f32>>{
+               f : &DenMatFn3<f32>, accuracy : usize, contour_data : &mut ContourData, debug_render : &mut RendererVertFragDef) -> Option<Vect3<f32>>{
     //let epsilon = vg.a / accuracy as f32;
 
     // let p00 = vg.get(x, y, z);
@@ -241,18 +241,18 @@ fn calc_feature(vg : &VoxelMaterialGrid3<f32>, x : usize, y : usize, z : usize,
 
 
         {
-            let mut worker = |edge_id : usize, v_a : Vector3<f32>, v_b : Vector3<f32>|{//goes through each edge of the cube
+            let mut worker = |edge_id : usize, v_a : Vect3<f32>, v_b : Vect3<f32>|{//goes through each edge of the cube
                 if (edge_info & edge_id) > 0{
                     let ip = sample_intersection_brute(Line3{start : v_a, end : v_b}, accuracy, f);//intersecion point
                     //let full = if p_a <= 0.0 {v_a} else {v_b};
                     //let normal = sample_normal(&Sphere{center : ip, rad : rad_for_normal}, accuracy, f);
                     let normal = sample_normal(&ip, rad_for_normal, f);
-                    //intersections.push(ip.x);
-                    //intersections.push(ip.y);
-                    //intersections.push(ip.z);
-                    //normals.push(normal.x);
-                    //normals.push(normal.y);
-                    //normals.push(normal.z);
+                    //intersections.push(ip.x());
+                    //intersections.push(ip.y());
+                    //intersections.push(ip.z());
+                    //normals.push(normal.x());
+                    //normals.push(normal.y());
+                    //normals.push(normal.z());
                     planes.push(Plane{point : ip, normal});
                     //calculate feature vertices of 3 other cubes containing this edge then create a quad from maximum of 4 those feature vertices.
                     //this is done in make_contour
@@ -275,12 +275,21 @@ fn calc_feature(vg : &VoxelMaterialGrid3<f32>, x : usize, y : usize, z : usize,
             worker(2048, v03, v13);
         }
 
+        //let mut A = DMatrix::<f32>::identity(0,3);
+        //A.insert_row(0,planes[0].normal);
+
+        //let ATA = (&A).transpose() * &A;
+        //let ATb = &((&A).transpose() * &b);
+        //let qr = ATA.qr();
+        //let _x = qr.solve();
+
+
        /*  let mut product = Vec::with_capacity(normals.len());
         for i in 0..normals.len()/3{
             product.push(normals[3 * i] * intersections[3 * i] + normals[3 * i + 1] * intersections[3 * i + 1] + normals[3 * i + 2] * intersections[3 * i + 2]);
         }
 
-        //let feature_vertex = Vector3::new(0.0,0.0,0.0);//sample_qef_brute(vg.square3(x,y,z), accuracy, &normals.zip);//TODO
+        //let feature_vertex = Vect3::new(0.0,0.0,0.0);//sample_qef_brute(vg.square3(x,y,z), accuracy, &normals.z()ip);//TODO
         let A = DMatrix::from_row_slice(normals.len() / 3, 3, normals.as_slice());
         let ATA = (&A).transpose() * &A;
         let b = DMatrix::from_row_slice(product.len(), 1, product.as_slice());
@@ -321,7 +330,7 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
 
     {
         //&mut contour_data, cache_already_calculated
-        let mut cached_make = |x: usize, y: usize, z : usize, contour_data : &mut ContourData| -> Option<Vector3<f32>>{
+        let mut cached_make = |x: usize, y: usize, z : usize, contour_data : &mut ContourData| -> Option<Vect3<f32>>{
             let t = z * vg.size_y * vg.size_x + y * vg.size_x + x;
 
             if cache_already_calculated[t] {
@@ -362,15 +371,15 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
                     let v12 = vg.get_point(x, y + 1, z + 1);
                     let v13 = vg.get_point(x + 1, y + 1, z + 1);*/
 
-                    fn color_map(edge0 : u32, edge1 : u32) -> Vector3<f32>{
+                    fn color_map(edge0 : u32, edge1 : u32) -> Vect3<f32>{
                         match edge0{
-                            1 => Vector3::new(1.0, 0.0, 0.0),
-                            2 => Vector3::new(0.0, 1.0, 0.0),
+                            1 => Vect3::new(1.0, 0.0, 0.0),
+                            2 => Vect3::new(0.0, 1.0, 0.0),
                             _ => {
                                 match edge1{
-                                    1 => Vector3::new(1.0, 0.0, 0.0),
-                                    2 => Vector3::new(0.0, 1.0, 0.0),
-                                    _ => Vector3::new(0.0,0.0,0.0),
+                                    1 => Vect3::new(1.0, 0.0, 0.0),
+                                    2 => Vect3::new(0.0, 1.0, 0.0),
+                                    _ => Vect3::new(0.0,0.0,0.0),
                                 }
                             },
                         }
@@ -407,7 +416,7 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f2, p3 : f3});
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f1, p3 : f2});
                                     
-                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 + dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
+                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 + dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
                                     //TODO debug
                                     /* if (dir.dot(&debug_real_normal) <= 0.0) {
                                         println!("bad normal at {} {} {} {}", 1, x, y, z);
@@ -416,11 +425,11 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
                                 }else{
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f3, p3 : f2});
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f2, p3 : f1});
-                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
+                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
                                    /*  if (-dir.dot(&debug_real_normal) <= 0.0) {
-                                        add_square3_bounds_color(debug_renderer, vg.square3(x, y, z), Vector3::new(1.0, 0.0, 0.0));
-                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
-                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - normal.normalize()}, Vector3::new(0.0, 0.0, 0.0));
+                                        add_square3_bounds_color(debug_renderer, vg.square3(x, y, z), Vect3::new(1.0, 0.0, 0.0));
+                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
+                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - normal.normalize()}, Vect3::new(0.0, 0.0, 0.0));
                                         println!("bad normal at {} {}", 2, -dir.dot(&debug_real_normal));
                                     } */
                                     contour_data.triangle_normals.push(-dir);
@@ -439,7 +448,7 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
                                 if dir.dot(&normal) > 0.0{ //should not be zero at any time
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f2, p3 : f3});
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f1, p3 : f2});
-                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 + dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
+                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 + dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
                                    /*  if (dir.dot(&debug_real_normal) <= 0.0) {
                                         println!("bad normal at {} {} {} {}", 3, x, y, z);
                                     } */
@@ -447,11 +456,11 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
                                 }else{
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f3, p3 : f2});
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f2, p3 : f1});
-                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
+                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
                                    /*  if (-dir.dot(&debug_real_normal) <= 0.0) {
-                                        add_square3_bounds_color(debug_renderer, vg.square3(x, y, z), Vector3::new(1.0, 0.0, 0.0));
-                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
-                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - normal.normalize()}, Vector3::new(0.0, 0.0, 0.0));
+                                        add_square3_bounds_color(debug_renderer, vg.square3(x, y, z), Vect3::new(1.0, 0.0, 0.0));
+                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
+                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - normal.normalize()}, Vect3::new(0.0, 0.0, 0.0));
                                         
                                         println!("bad normal at {} {}", 4, -dir.dot(&debug_real_normal));
                                     } */
@@ -471,7 +480,7 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
                                 if dir.dot(&normal) > 0.0{ //should not be zero at any time
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f2, p3 : f3});
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f1, p3 : f2});
-                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 + dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
+                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 + dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
                                    /*  if (dir.dot(&debug_real_normal) <= 0.0) {
                                         println!("bad normal at {} {} {} {}", 5, x, y, z);
                                     } */
@@ -479,10 +488,10 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
                                 } else{
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f3, p3 : f2});
                                     contour_data.triangles.push(Triangle3{p1 : f0, p2 : f2, p3 : f1});
-                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
+                                    //add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
                                    /*  if (-dir.dot(&debug_real_normal) <= 0.0) {
-                                        add_square3_bounds_color(debug_renderer, vg.square3(x, y, z), Vector3::new(1.0, 0.0, 0.0));
-                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vector3::new(1.0, 1.0, 1.0));
+                                        add_square3_bounds_color(debug_renderer, vg.square3(x, y, z), Vect3::new(1.0, 0.0, 0.0));
+                                        add_line3_color(debug_renderer, Line3{start : f0, end : f0 - dir * 0.1}, Vect3::new(1.0, 1.0, 1.0));
                                         println!("bad normal at {} {} {} {}", 6, x, y, z);
                                     } */
                                     contour_data.triangle_normals.push(-dir);
@@ -503,13 +512,13 @@ pub fn make_contour(vg : &VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, accuracy
 
 }
 
-pub fn fill_in_grid(vg : &mut VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, offset : Vector3<f32>){
+pub fn fill_in_grid(vg : &mut VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, offset : Vect3<f32>){
     for z in 0..vg.size_z + 1 {
         for y in 0..vg.size_y + 1{
             for x in 0..vg.size_x + 1 {
                 let vx = vg.vertices_x();
                 let vy = vg.vertices_y();
-                vg.grid[z * vy * vx + y * vx + x] = f(offset + Vector3::new(vg.a * (x as f32), vg.a * (y as f32), vg.a * (z as f32)));
+                vg.grid[z * vy * vx + y * vx + x] = f(offset + Vect3::new(vg.a * (x as f32), vg.a * (y as f32), vg.a * (z as f32)));
             }
         }
     }
@@ -519,9 +528,9 @@ pub fn fill_in_grid(vg : &mut VoxelMaterialGrid3<f32>, f : &DenMatFn3<f32>, offs
 pub struct ContourData{ // + hermite data ? (exact points of intersection of the surface with each edge that exhibits a sign change + normals for each of those points)
     pub lines : Vec<Line3<f32>>,
     pub triangles : Vec<Triangle3<f32>>,
-    pub triangle_normals : Vec<Vector3<f32>>,
-    pub triangle_colors : Vec<Vector3<f32>>,
-    pub features : Vec<Option<Vector3<f32>>>,
-    pub normals : Vec<Option<Vector3<f32>>>, //normal to the surface calculated at feature vertex
+    pub triangle_normals : Vec<Vect3<f32>>,
+    pub triangle_colors : Vec<Vect3<f32>>,
+    pub features : Vec<Option<Vect3<f32>>>,
+    pub normals : Vec<Option<Vect3<f32>>>, //normal to the surface calculated at feature vertex
     pub materials : Vec<u32>,
 }

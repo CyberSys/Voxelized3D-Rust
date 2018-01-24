@@ -10,7 +10,7 @@ use std::rc::*;
 use std::cell::{RefCell,Cell};
 use std::borrow::BorrowMut;
 use std::cell::RefMut;
-use na::*;
+use matrix::*;
 
 pub enum RenderLifetime{
     Manual,
@@ -28,11 +28,11 @@ pub enum RenderID{
     ID(usize),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Camera{
-    pub pos : Vector3<f32>,
-    pub look : Vector3<f32>, //TODO Unit<Vector3<f32>>
-    pub up : Vector3<f32>,
+    pub pos : Vect3<f32>,
+    pub look : Vect3<f32>, //TODO Unit<Vect3<f32>>
+    pub up : Vect3<f32>,
 }
 
 impl PartialEq for RenderID{
